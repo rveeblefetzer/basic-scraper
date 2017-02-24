@@ -6,6 +6,8 @@ import io
 from bs4 import BeautifulSoup
 import sys
 import re
+import html5lib
+import sys
 
 INSPECTION_DOMAIN = 'http://info.kingcounty.gov'
 INSPECTION_PATH = '/health/ehs/foodsafety/inspections/Results.aspx'
@@ -41,6 +43,58 @@ def get_inspection_page(**kwargs):
     for key, val in kwargs.items():
         if key in INSPECTION_PARAMS:
             params[key] = val
-    el_response = requests.get(url, params=params)
-    el_response.raise_for_status()
-    return el_response.content, el_response.encoding
+    resp = requests.get(url, params=params)
+    resp.raise_for_status()
+    return resp.content, resp.encoding
+
+
+def load_inspection_page(src):
+    """Load the inspection page."""
+    src = io.open(src, encoding='utf8', mode='r')
+    data = src.read()
+    src.close()
+    return data, 'utf-8'
+
+
+def parse_source(html, encoding='utf-8'):
+    """Set up the HTML as DOM nodes for scraping."""
+    parsed = BeautifulSoup(html, 'html5lib', from_encoding=encoding)
+    return parsed
+
+
+def extract_data_listings(html):
+    """Find the container that holds each individual listing."""
+    id_finder = re.compile(r'PR[\d]+~')
+    return html.find_all('div', id=id_finder)
+
+
+if __name__ == '__main__':
+    kwargs = {
+        'Inspection_Start': '2/1/2013',
+        'Inspection_End': '2/1/2015',
+        'Zip_Code': '98109'
+    }
+    if len(sys.argv) > 1 and sys.argv[1] == 'test':
+
+        html, encoding = load_inspection_page('inspection_page.html')
+    else:
+        html, encoding = get_inspection_page(**kwargs)
+    doc = parse_source(html, encoding)
+    print(doc.prettify(encoding=encoding))
+
+if __name__ == '__main__':
+    kwargs = {
+        'Inspection_Start': '2/1/2013',
+        'Inspection_End': '2/1/2015',
+        'Zip_Code': '98109'
+    }
+    if len(sys.argv) > 1 and sys.argv[1] == 'test':
+        html, encoding = load_inspection_page('inspection_page.html')
+    else:
+        html, encoding = get_inspection_page(**kwargs)
+    doc = parse_source(html, encoding)
+    listings = extract_data_listings(doc)
+    for listing in listings[:5]:
+        metadata = extract_restaurant_metadata(listing)
+        score_data = extract_score_data(listing)
+        print(score_data)
